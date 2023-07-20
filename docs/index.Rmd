@@ -7,9 +7,14 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(boot)
+library(MASS)
+library(Matrix)
+library(ggrepel)
 ```
 
-An R implementation of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4811631/. This answers the question: the Wald test compares population medians, but what about other parts of the distribution. Johnson and Romer provided and algorithm to compare a limited set of percentiles between two distributions. I created a function to implement it.
+An R implementation of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4811631/. This answers the question: the Wald test compares population medians, but what about other parts of the distribution. Johnson and Romer provided and algorithm to compare a limited set of percentiles between two distributions. I created a function to implement it. Github for this is [here](https://github.com/cmilando/wald-test-percentiles)
 
 ```{r block1}
 Wald_percentiles_test <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') {
@@ -31,8 +36,17 @@ Wald_percentiles_test <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') 
   len.x1 <- length(x1)
   len.x2 <- length(x2)
   
-  stopifnot(is.double(x1),is.double(x2))
+  # error checking
+  stopifnot(is.double(x1))
+  stopifnot(is.double(x2))
+  
+  stopifnot(all(p >= 0))
+  stopifnot(all(p <= 1))
   stopifnot(n.p <= 5)
+  
+  stopifnot(is.numeric(n.B))
+  stopifnot(n.B %% 1 == 0)
+  stopifnot(length(n.B) == 1)
   if(n.B < 500) warning('n.B should be > 500')
   
   # -- Step 1 & 2 --
@@ -45,17 +59,17 @@ Wald_percentiles_test <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') 
     # plot
   if(show.plot) {
     
-    p_df1 <- data.frame(p, x = q1, lbl = 'q1')
-    p_df2 <- data.frame(p, x = q2, lbl = 'q2')
+    p_df1 <- data.frame(p, x = q1, fct = 'q1', z = paste0(p*100, "th: ", signif(q1, 2)))
+    p_df2 <- data.frame(p, x = q2, fct = 'q2', z = paste0(p*100, "th: ", signif(q2, 2)))
     p_df  <- rbind(p_df1, p_df2)
     
-    pp <- ggplot() +
+    pp <- ggplot() + xlab("X") + ylab("Density") +
       geom_density(aes(x = x1), fill = "pink", alpha = 0.5) +
       geom_density(aes(x = x2), fill = "lightblue", alpha = 0.5) +
-      geom_point(data = p_df, aes(x = x, y = 0, color = lbl), show.legend = F) + 
-      geom_label_repel(data = p_df, aes(x = x, y = 0, label = p, color = lbl), 
+      geom_point(data = p_df, aes(x = x, y = 0, color = fct), show.legend = F) + 
+      geom_label_repel(data = p_df, aes(x = x, y = 0, label = z, color = fct), 
                        point.padding = 1, direction = 'y', nudge_y = 0.1, 
-                       show.legend = F) + 
+                       show.legend = F, size = 3) + 
       scale_color_manual(values = c('q1' = 'red', 'q2' = 'blue'))
     
     print(pp)
@@ -136,12 +150,16 @@ Test code
 ```{r block2}
 # population 1
 bimodal.pop1 <- c(rnorm(500, mean = 0, sd = 1), rnorm(500, 5, 1))
+
 # pooulation 2
-norm.pop2 <- c(rnorm(1000, mean = 1, sd = 1))
+# note: can be a different length!
+norm.pop2 <- c(rnorm(800, mean = 1, sd = 1))
+
 # percentiles to test
 p <- c(0.25, 0.50, 0.75)
+
 # number of bootstrap runs
 n.B <- 500
 
-Wald_percentiles_test(bimodal.pop1, norm.pop2, p, n.B, show.plot = T)
+Wald_percentiles_test(bimodal.pop1, norm.pop2, p, n.B)
 ```
