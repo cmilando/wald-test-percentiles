@@ -9,14 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-An R implementation of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4811631/
+An R implementation of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4811631/. This answers the question: the Wald test compares population medians, but what about other parts of the distribution. Johnson and Romer provided and algorithm to compare a limited set of percentiles between two distributions. I created a function to implement it.
 
 ```{r block1}
-
-ASTHMA_wald <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') {
-  #' Author: CWM
-  #' Purpose: Wald paper function
-  #' Date: 10.21.2019
+Wald_percentiles_test <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') {
   #' Arguments:
   #'    @x1   = numeric vector, data from group 1
   #'    @x2   = numeric vector, data from group 2
@@ -29,6 +25,7 @@ ASTHMA_wald <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') {
   require(boot)
   require(MASS)
   require(Matrix)
+  require(ggrepel)
               
   n.p <- length(p)
   len.x1 <- length(x1)
@@ -38,20 +35,31 @@ ASTHMA_wald <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') {
   stopifnot(n.p <= 5)
   if(n.B < 500) warning('n.B should be > 500')
   
-  # plot
-  if(show.plot) {
-    pp <- ggplot(data.frame(x = x1, y = x2)) +
-      geom_density(aes(x = x), fill = "pink", alpha = 0.5) +
-      geom_density(aes(x = y), fill = "lightgreen", alpha = 0.5)
-    print(pp)
-  }
-  
   # -- Step 1 & 2 --
   # percentiles profile, q, for each population
   get_quantile <- function(x, p = p) quantile(x, probs = p, names = F)
   q1 <- get_quantile(x1, p)
   q2 <- get_quantile(x2, p)
   q <- c(q1, q2)
+  
+    # plot
+  if(show.plot) {
+    
+    p_df1 <- data.frame(p, x = q1, lbl = 'q1')
+    p_df2 <- data.frame(p, x = q2, lbl = 'q2')
+    p_df  <- rbind(p_df1, p_df2)
+    
+    pp <- ggplot() +
+      geom_density(aes(x = x1), fill = "pink", alpha = 0.5) +
+      geom_density(aes(x = x2), fill = "lightblue", alpha = 0.5) +
+      geom_point(data = p_df, aes(x = x, y = 0, color = lbl), show.legend = F) + 
+      geom_label_repel(data = p_df, aes(x = x, y = 0, label = p, color = lbl), 
+                       point.padding = 1, direction = 'y', nudge_y = 0.1, 
+                       show.legend = F) + 
+      scale_color_manual(values = c('q1' = 'red', 'q2' = 'blue'))
+    
+    print(pp)
+  }
   
   # -- Step 3 --
   # function to get B bootstrap sample estimates of Q
@@ -124,14 +132,16 @@ ASTHMA_wald <- function(x1, x2, p, n.B, show.plot = T, fmt = '%1.3f') {
 }
 ```
 
+Test code
 ```{r block2}
-norm.pop <- c(rnorm(500, mean = 0, sd = 1), rnorm(500, 5, 1))
-
-cauchy.pop <- c(rcauchy(500, location = 0, scale = 0.5), rnorm(500, 10, 1))
-
+# population 1
+bimodal.pop1 <- c(rnorm(500, mean = 0, sd = 1), rnorm(500, 5, 1))
+# pooulation 2
+norm.pop2 <- c(rnorm(1000, mean = 1, sd = 1))
+# percentiles to test
 p <- c(0.25, 0.50, 0.75)
-
+# number of bootstrap runs
 n.B <- 500
 
-ASTHMA_wald(norm.pop, cauchy.pop, p, n.B, show.plot = T)
+Wald_percentiles_test(bimodal.pop1, norm.pop2, p, n.B, show.plot = T)
 ```
